@@ -4,3 +4,48 @@ server:
 spring:
   application:
     name: log-collector-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    admin:
+      fail-fast: true
+      operation-timeout: 10s
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+        max.block.ms: 5000
+        retry.backoff.ms: 100
+        retry.backoff.max.ms: 1000
+        spring.json.add.type.headers: false
+    template:
+      observation-enabled: true
+  mvc:
+    async:
+      request-timeout: 40s
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+collector:
+  raw-topic: ${KAFKA_RAW_TOPIC:logs.raw}
+  max-request-bytes: ${COLLECTOR_MAX_REQUEST_BYTES:1048576}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+logging:
+  structured:
+    format:
+      console: logstash
+
+springdoc:
+  swagger-ui:
+    operations-sorter: method
+    tags-sorter: alpha

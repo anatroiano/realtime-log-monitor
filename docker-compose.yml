@@ -1,0 +1,41 @@
+services:
+  kafka:
+    image: apache/kafka:4.2.2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9092:9092"
+    env_file:
+      - ./infra/.env
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - log-monitor-network
+    healthcheck:
+      test: [ "CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:19092" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  log-collector-service:
+    image: realtime-log-monitor-collector
+    build:
+      context: ./log-collector-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8081"
+    env_file:
+      - ./infra/.env
+    networks:
+      - log-monitor-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+volumes:
+  kafka-data:
+
+networks:
+  log-monitor-network:
+    driver: bridge

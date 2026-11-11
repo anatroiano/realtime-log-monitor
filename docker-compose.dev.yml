@@ -1,0 +1,13 @@
+services:
+  log-collector-service:
+    image: realtime-log-monitor-collector-dev
+    build:
+      dockerfile: Dockerfile-dev
+    ports:
+      - "127.0.0.1:5005:5005"
+    volumes:
+      - ./log-collector-service/src:/app/src:ro
+      - maven-repository:/root/.m2
+
+volumes:
+  maven-repository:
