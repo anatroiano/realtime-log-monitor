@@ -9,5 +9,15 @@ services:
       - ./log-collector-service/src:/app/src:ro
       - maven-repository:/root/.m2
 
+  log-processor-service:
+    image: realtime-log-monitor-processor-dev
+    build:
+      dockerfile: Dockerfile-dev
+    ports:
+      - "127.0.0.1:5006:5006"
+    volumes:
+      - ./log-processor-service/src:/app/src:ro
+      - maven-repository:/root/.m2
+
 volumes:
   maven-repository:

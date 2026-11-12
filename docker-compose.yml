@@ -33,8 +33,27 @@ services:
       kafka:
         condition: service_healthy
 
+  log-processor-service:
+    image: realtime-log-monitor-processor
+    build:
+      context: ./log-processor-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8082:8082"
+    env_file:
+      - ./infra/.env
+    volumes:
+      - processor-state:/app/data
+    networks:
+      - log-monitor-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+
 volumes:
   kafka-data:
+  processor-state:
 
 networks:
   log-monitor-network:

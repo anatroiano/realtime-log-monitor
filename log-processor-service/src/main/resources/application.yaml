@@ -4,3 +4,48 @@ server:
 spring:
   application:
     name: log-processor-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    admin:
+      fail-fast: true
+      operation-timeout: 10s
+    streams:
+      application-id: ${PROCESSOR_APPLICATION_ID:log-processor-v1}
+      state-dir: ${PROCESSOR_STATE_DIR:./data/processor}
+      replication-factor: ${PROCESSOR_REPLICATION_FACTOR:1}
+      properties:
+        processing.guarantee: exactly_once_v2
+        auto.offset.reset: earliest
+        commit.interval.ms: 1000
+        task.timeout.ms: 60000
+        producer.delivery.timeout.ms: 30000
+        producer.request.timeout.ms: 10000
+        producer.max.block.ms: 5000
+        producer.max.request.size: 2097152
+        producer.retry.backoff.ms: 100
+        producer.retry.backoff.max.ms: 1000
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+processor:
+  raw-topic: ${KAFKA_RAW_TOPIC:logs.raw}
+  metrics-topic: ${KAFKA_METRICS_TOPIC:logs.metrics}
+  alerts-topic: ${KAFKA_ALERTS_TOPIC:alerts.triggered}
+  dead-letter-topic: ${KAFKA_RAW_DLT_TOPIC:logs.raw.dlt}
+  grace-period: ${PROCESSOR_GRACE_PERIOD:5m}
+  deduplication-retention: ${PROCESSOR_DEDUPLICATION_RETENTION:24h}
+  output-retention: ${PROCESSOR_OUTPUT_RETENTION:7d}
+  partitions: ${PROCESSOR_TOPIC_PARTITIONS:3}
+  replicas: ${PROCESSOR_REPLICATION_FACTOR:1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+logging:
+  structured:
+    format:
+      console: logstash
