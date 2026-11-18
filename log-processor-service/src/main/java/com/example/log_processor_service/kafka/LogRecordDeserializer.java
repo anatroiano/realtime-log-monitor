@@ -2,18 +2,15 @@ package com.example.log_processor_service.kafka;
 
 import com.example.log_processor_service.domain.LogEvent;
 import jakarta.validation.Validator;
+import lombok.RequiredArgsConstructor;
 import org.apache.kafka.common.serialization.Deserializer;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
+@RequiredArgsConstructor
 final class LogRecordDeserializer implements Deserializer<DecodedLog> {
-    private final JsonMapper mapper;
+    private final JsonMapper jsonMapper;
     private final Validator validator;
-
-    LogRecordDeserializer(JsonMapper mapper, Validator validator) {
-        this.mapper = mapper;
-        this.validator = validator;
-    }
 
     @Override
     public DecodedLog deserialize(String topic, byte[] data) {
@@ -22,7 +19,7 @@ final class LogRecordDeserializer implements Deserializer<DecodedLog> {
         }
         LogEvent event;
         try {
-            event = mapper.readValue(data, LogEvent.class);
+            event = jsonMapper.readValue(data, LogEvent.class);
         } catch (JacksonException exception) {
             return new DecodedLog(null, data, "INVALID_JSON");
         }

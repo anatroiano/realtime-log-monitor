@@ -51,9 +51,79 @@ services:
       kafka:
         condition: service_healthy
 
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    env_file:
+      - ./infra/postgres/.env
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - log-monitor-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\"" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  alert-service:
+    image: realtime-log-monitor-alert
+    build:
+      context: ./alert-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8083:8083"
+    env_file:
+      - ./infra/.env
+      - ./alert-service/.env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/log_monitor
+    networks:
+      - log-monitor-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - log-monitor-network
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - ./infra/grafana/.env
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - log-monitor-network
+    depends_on:
+      - prometheus
+      - postgres
+
 volumes:
   kafka-data:
   processor-state:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
   log-monitor-network:

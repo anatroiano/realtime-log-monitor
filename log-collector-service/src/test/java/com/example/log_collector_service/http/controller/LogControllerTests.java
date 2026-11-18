@@ -1,5 +1,6 @@
 package com.example.log_collector_service.http.controller;
 
+import com.example.log_collector_service.application.BatchMetrics;
 import com.example.log_collector_service.application.LogIngestionService;
 import com.example.log_collector_service.application.LogPublisher;
 import com.example.log_collector_service.domain.LogEvent;
@@ -37,7 +38,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(LogController.class)
-@Import({LogIngestionService.class, LogControllerTests.Configuration.class})
+@Import({LogIngestionService.class, BatchMetrics.class, LogControllerTests.Configuration.class})
 class LogControllerTests {
     private static final LogEvent EVENT = new LogEvent(
             "id-1",

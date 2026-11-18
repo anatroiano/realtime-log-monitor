@@ -12,3 +12,61 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  flyway:
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    clean-disabled: true
+    validate-migration-naming: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  data:
+    web:
+      pageable:
+        max-page-size: 200
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    admin:
+      fail-fast: true
+      operation-timeout: 10s
+    consumer:
+      group-id: ${ALERT_CONSUMER_GROUP:alert-service}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      isolation-level: read_committed
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+        max.block.ms: 5000
+
+alerts:
+  metrics-topic: ${KAFKA_METRICS_TOPIC:logs.metrics}
+  alerts-topic: ${KAFKA_ALERTS_TOPIC:alerts.triggered}
+  dead-letter-suffix: .dlt
+  dead-letter-retention: ${ALERT_DEAD_LETTER_RETENTION:14d}
+  partitions: ${ALERT_TOPIC_PARTITIONS:3}
+  replicas: ${ALERT_REPLICATION_FACTOR:1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+logging:
+  structured:
+    format:
+      console: logstash
+
+springdoc:
+  swagger-ui:
+    operations-sorter: method
+    tags-sorter: alpha

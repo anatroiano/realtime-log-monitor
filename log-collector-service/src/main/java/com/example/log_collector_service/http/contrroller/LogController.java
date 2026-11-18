@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,12 +21,9 @@ import java.util.concurrent.CompletableFuture;
 
 @Tag(name = "Logs", description = "Operations related to application log ingestion")
 @RestController
+@RequiredArgsConstructor
 public class LogController {
-    private final LogIngestionService ingestion;
-
-    public LogController(LogIngestionService ingestion) {
-        this.ingestion = ingestion;
-    }
+    private final LogIngestionService logIngestionService;
 
     @Operation(summary = "Submit a log batch", description = "Receives application logs and publishes them to Kafka")
     @ApiResponses(value = {
@@ -36,7 +34,7 @@ public class LogController {
     })
     @PostMapping(path = "/logs")
     public CompletableFuture<ResponseEntity<Void>> ingest(@RequestBody @NotEmpty @Size(max = 1000) List<@NotNull @Valid LogEvent> events) {
-        return ingestion.ingest(events)
+        return logIngestionService.ingest(events)
                 .thenApply(ignored -> ResponseEntity.accepted().build());
     }
 }

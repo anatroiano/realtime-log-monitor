@@ -7,14 +7,13 @@ import org.apache.kafka.streams.processor.api.ContextualFixedKeyProcessor;
 import org.apache.kafka.streams.processor.api.FixedKeyProcessorContext;
 import org.apache.kafka.streams.processor.api.FixedKeyRecord;
 import org.apache.kafka.streams.state.WindowStore;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 
+@Slf4j
 final class LogRecordProcessor extends ContextualFixedKeyProcessor<String, DecodedLog, ProcessedLog> {
     static final String SEEN_LOGS_STORE = "seen-logs";
-    private static final Logger logger = LoggerFactory.getLogger(LogRecordProcessor.class);
 
     private final ProcessorProperties properties;
     private final Counter invalid;
@@ -39,12 +38,12 @@ final class LogRecordProcessor extends ContextualFixedKeyProcessor<String, Decod
 
     @Override
     public void process(FixedKeyRecord<String, DecodedLog> record) {
-        DecodedLog log = record.value();
-        if (log == null || !log.isValid()) {
-            reject(record, log == null ? "MISSING_VALUE" : log.failureReason());
+        DecodedLog decodedLog = record.value();
+        if (decodedLog == null || !decodedLog.isValid()) {
+            reject(record, decodedLog == null ? "MISSING_VALUE" : decodedLog.failureReason());
             return;
         }
-        if (!log.event().serviceName().equals(record.key())) {
+        if (!decodedLog.event().serviceName().equals(record.key())) {
             reject(record, "KEY_MISMATCH");
             return;
         }
@@ -55,7 +54,7 @@ final class LogRecordProcessor extends ContextualFixedKeyProcessor<String, Decod
             late.increment();
             return;
         }
-        String key = EventKeys.log(log.event().serviceName(), log.event().logId());
+        String key = EventKeys.log(decodedLog.event().serviceName(), decodedLog.event().logId());
         Instant from = Instant.ofEpochMilli(Math.max(0, streamTime - properties.deduplicationRetention().toMillis()));
         try (var matches = seenLogs.fetch(key, from, Instant.ofEpochMilli(streamTime))) {
             if (matches.hasNext()) {
@@ -65,7 +64,7 @@ final class LogRecordProcessor extends ContextualFixedKeyProcessor<String, Decod
         }
         seenLogs.put(key, streamTime, streamTime);
         accepted.increment();
-        context().forward(record.withValue(new ProcessedLog(log.event(), null)));
+        context().forward(record.withValue(new ProcessedLog(decodedLog.event(), null)));
     }
 
     private void reject(FixedKeyRecord<String, DecodedLog> record, String reason) {
@@ -74,7 +73,7 @@ final class LogRecordProcessor extends ContextualFixedKeyProcessor<String, Decod
         var rejection = new RejectedLog(metadata.topic(), metadata.partition(), metadata.offset(),
                 record.key(), value, reason);
         invalid.increment();
-        logger.atWarn().addKeyValue("topic", metadata.topic()).addKeyValue("partition", metadata.partition())
+        log.atWarn().addKeyValue("topic", metadata.topic()).addKeyValue("partition", metadata.partition())
                 .addKeyValue("offset", metadata.offset()).addKeyValue("reason", reason)
                 .log("Invalid log routed to dead-letter topic");
         context().forward(record.withValue(new ProcessedLog(null, rejection)));

@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: log-collector-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [ "log-collector-service:8081" ]
+
+  - job_name: log-processor-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [ "log-processor-service:8082" ]
+
+  - job_name: alert-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [ "alert-service:8083" ]

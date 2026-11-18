@@ -19,5 +19,15 @@ services:
       - ./log-processor-service/src:/app/src:ro
       - maven-repository:/root/.m2
 
+  alert-service:
+    image: realtime-log-monitor-alert-dev
+    build:
+      dockerfile: Dockerfile-dev
+    ports:
+      - "127.0.0.1:5007:5007"
+    volumes:
+      - ./alert-service/src:/app/src:ro
+      - maven-repository:/root/.m2
+
 volumes:
   maven-repository:

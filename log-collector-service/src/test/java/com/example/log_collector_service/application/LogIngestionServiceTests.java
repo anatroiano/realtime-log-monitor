@@ -26,7 +26,7 @@ class LogIngestionServiceTests {
         var secondSend = new CompletableFuture<Void>();
         var registry = new SimpleMeterRegistry();
         var service = new LogIngestionService(
-                event -> event.logId().equals("first") ? firstSend : secondSend, registry);
+                event -> event.logId().equals("first") ? firstSend : secondSend, new BatchMetrics(registry));
 
         var result = service.ingest(List.of(first, second));
         assertThat(result).isNotDone();
@@ -47,7 +47,7 @@ class LogIngestionServiceTests {
             return attempt.getAndIncrement() == 1
                     ? CompletableFuture.failedFuture(new IllegalStateException("Broker unavailable"))
                     : CompletableFuture.completedFuture(null);
-        }, registry);
+        }, new BatchMetrics(registry));
         var batch = List.of(first, second);
 
         assertThatThrownBy(() -> service.ingest(batch).join())
@@ -66,7 +66,7 @@ class LogIngestionServiceTests {
                 throw new IllegalStateException("Metadata unavailable");
             }
             return pending;
-        }, new SimpleMeterRegistry());
+        }, new BatchMetrics(new SimpleMeterRegistry()));
 
         var result = service.ingest(List.of(first, second));
         assertThat(result).isNotDone();
