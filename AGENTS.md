@@ -52,7 +52,7 @@ No processador, Spring Web serve ao endpoint HTTP do Actuator. Se a opção de K
 ## Regras de trabalho para agentes
 
 - Responda em português. Use inglês em nomes de código, branches e mensagens de commit.
-- Não execute compilação, testes ou comandos Maven sem autorização explícita. Ao terminar, informe quais comandos rodar, por exemplo `./mvnw clean test` ou `./mvnw clean test -Pkafka-integration` para incluir os testes `IT`.
+- Não execute compilação, testes ou comandos Maven sem autorização explícita. Ao terminar, informe quais comandos rodar, por exemplo `docker compose run --rm tests` para todos os testes ou `docker compose run --rm tests -pl alert-service clean test -Pkafka-integration` para um serviço.
 - Escreva e atualize os testes afetados pela mudança e diga claramente que eles não foram executados.
 - Não crie commits nem troque de branch sem pedido. Preserve alterações existentes e o estado de staging.
 - Antes de implementar uma etapa, leia o código do serviço afetado e reutilize o que já existe nele.
@@ -64,7 +64,7 @@ No processador, Spring Web serve ao endpoint HTTP do Actuator. Se a opção de K
 - Escreva código sem comentários explicativos. Prefira nomes precisos, métodos pequenos e fluxo direto. Registre decisões e justificativas na documentação.
 - Reutilize código existente dentro de cada serviço. Extraia lógica quando representar a mesma regra de negócio e precisar evoluir em conjunto. Mantenha os serviços independentes e os contratos de integração explícitos.
 - Use padrões quando resolverem um problema concreto. Separe a lógica de negócio de HTTP, Kafka e SQL. Prefira as convenções do Spring e a menor solução que preserve os contratos.
-- Valide entradas nas fronteiras. Mantenha configurações específicas do ambiente fora do código e carregue segredos por configuração externa. Use logs estruturados com identificadores úteis e omita credenciais, dados sensíveis e o conteúdo integral dos logs recebidos.
+- Valide entradas nas fronteiras. Mantenha configurações específicas do ambiente fora do código e carregue segredos por configuração externa. Defina cada segredo uma única vez no `.env` da raiz e repasse-o aos containers pelo `docker-compose.yml`; configuração que não é segredo fica no próprio `docker-compose.yml`. Use logs estruturados com identificadores úteis e omita credenciais, dados sensíveis e o conteúdo integral dos logs recebidos.
 
 ## Padrões de código Java
 
