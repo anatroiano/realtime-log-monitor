@@ -82,6 +82,8 @@ services:
       - ./alert-service/.env
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/log_monitor
+      ALERT_WEBHOOK_ENABLED: "true"
+      ALERT_WEBHOOK_URL: http://webhook-receiver:8080/alerts
     networks:
       - log-monitor-network
     depends_on:
@@ -89,6 +91,14 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+
+  webhook-receiver:
+    image: mendhak/http-https-echo:37
+    restart: unless-stopped
+    environment:
+      HTTP_PORT: 8080
+    networks:
+      - log-monitor-network
 
   prometheus:
     image: prom/prometheus:v3.5.0

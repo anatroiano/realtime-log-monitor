@@ -16,7 +16,7 @@ Os três serviços expõem métricas operacionais via Actuator. O Prometheus col
 | --- | --- | --- |
 | `log-collector-service` | `POST /logs` → `logs.raw` | Receber lotes JSON, validar antes de publicar e enviar um registro por log ao Kafka com `serviceName` como chave. Responder `202` após o broker confirmar todos os envios do lote. O cliente conserva os mesmos `logId` em retentativas. |
 | `log-processor-service` | `logs.raw` → `logs.metrics` e `alerts.triggered` | Usar Kafka Streams para deduplicar logs e contar entradas por serviço em janelas fixas de um minuto, com base no timestamp original. Contar `ERROR` e `FATAL` como erros e gerar um alerta quando a contagem atingir 51 na janela. Publicar as métricas agrupadas por intervalo, com o snapshot mais recente de cada janela. |
-| `alert-service` | `logs.metrics` e `alerts.triggered` → PostgreSQL e `GET /alerts` | Atualizar as contagens por serviço e janela, registrar incidentes, disponibilizar o histórico e, em uma etapa posterior do MVP, enviar notificações via webhook. |
+| `alert-service` | `logs.metrics` e `alerts.triggered` → PostgreSQL e `GET /alerts` | Atualizar as contagens por serviço e janela, registrar incidentes, disponibilizar o histórico e enviar notificações via webhook. |
 
 ## Contratos Kafka
 
@@ -69,7 +69,7 @@ No processador, Spring Web serve ao endpoint HTTP do Actuator. Se a opção de K
 ## Padrões de código Java
 
 - Use injeção por construtor e um `Clock` injetável para decisões temporais, como cooldown. Use o mesmo `Instant` na validação e no registro de uma operação.
-- Organize os pacotes de cada serviço por papel: `config`, `controller`, `domain` (entidades JPA), `dto`, `event` (contratos Kafka), `consumer` (listeners Kafka), `exception`, `repository` e `service`. Crie apenas os pacotes que o serviço usar.
+- Organize os pacotes de cada serviço por papel: `config`, `controller`, `domain` (entidades JPA), `dto`, `event` (contratos Kafka), `consumer` (listeners Kafka), `client` (clientes HTTP externos), `scheduling` (tarefas agendadas), `exception`, `repository` e `service`. Crie apenas os pacotes que o serviço usar.
 - Services coordenam regras e transações. Listeners Kafka, controllers e schedulers apenas convertem a entrada e disparam o caso de uso.
 - Valide entradas com Jakarta Bean Validation e `@Valid` nos DTOs e eventos recebidos. Trate entradas inválidas com exceções específicas e respostas HTTP consistentes no handler de exceções do serviço. Não capture `NullPointerException` como regra de negócio.
 - Nomeie dependências injetadas, campos e variáveis pelo tipo e papel, sem abreviar ou pluralizar: `alertService`, `alertRepository`, `meterRegistry`, `kafkaTemplate`.
@@ -112,5 +112,6 @@ No processador, Spring Web serve ao endpoint HTTP do Actuator. Se a opção de K
 2. Validar as contagens de um minuto e o alerta no 51º erro com um lote pequeno.
 3. Persistir métricas e incidentes e ligar o Grafana ao PostgreSQL e ao Prometheus.
 4. Rodar uma carga de um milhão de logs e medir o atraso e a recuperação após uma pausa no processador. Reentregar um alerta e conferir que ele aparece uma vez no histórico.
+5. Notificar incidentes via webhook com outbox, retentativas, chave de idempotência e cooldown por serviço. Esta é a última etapa do MVP.
 
 Ao implementar uma etapa, preserve os contratos Kafka e mantenha cada serviço responsável pelo próprio estado. Os tópicos `logs.enriched` e `logs.errors` ficam para uma etapa em que houver consumidores para eles.

@@ -20,11 +20,13 @@ public class AlertService {
     private final AlertRepository alertRepository;
     private final Clock clock;
     private final AlertMetrics alertMetrics;
+    private final WebhookDeliveryService webhookDeliveryService;
 
     @Transactional
     public void register(AlertTriggered alert) {
+        var registeredAt = clock.instant();
         int insertedRows = alertRepository.insertIfAbsent(alert.alertId(), alert.serviceName(), alert.ruleId(),
-                alert.windowStart(), alert.windowEnd(), alert.errorCount(), clock.instant());
+                alert.windowStart(), alert.windowEnd(), alert.errorCount(), registeredAt);
         var logEvent = log.atInfo()
                 .addKeyValue("alertId", alert.alertId())
                 .addKeyValue("serviceName", alert.serviceName())
@@ -37,6 +39,7 @@ public class AlertService {
         }
         alertMetrics.recordRegisteredAlert();
         logEvent.log("Alert registered");
+        webhookDeliveryService.schedule(alert, registeredAt);
     }
 
     @Transactional(readOnly = true)

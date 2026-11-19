@@ -54,6 +54,17 @@ alerts:
   dead-letter-retention: ${ALERT_DEAD_LETTER_RETENTION:14d}
   partitions: ${ALERT_TOPIC_PARTITIONS:3}
   replicas: ${ALERT_REPLICATION_FACTOR:1}
+  webhook:
+    enabled: ${ALERT_WEBHOOK_ENABLED:false}
+    url: ${ALERT_WEBHOOK_URL:}
+    cooldown: ${ALERT_WEBHOOK_COOLDOWN:5m}
+    poll-interval: ${ALERT_WEBHOOK_POLL_INTERVAL:2s}
+    batch-size: ${ALERT_WEBHOOK_BATCH_SIZE:20}
+    max-attempts: ${ALERT_WEBHOOK_MAX_ATTEMPTS:8}
+    initial-backoff: ${ALERT_WEBHOOK_INITIAL_BACKOFF:5s}
+    max-backoff: ${ALERT_WEBHOOK_MAX_BACKOFF:10m}
+    connect-timeout: ${ALERT_WEBHOOK_CONNECT_TIMEOUT:2s}
+    read-timeout: ${ALERT_WEBHOOK_READ_TIMEOUT:5s}
 
 management:
   endpoints:
