@@ -1,6 +1,7 @@
 # Snapshots de janela só avançam a contagem
 
-O processador publica em `logs.metrics` totais acumulados por serviço e janela, um snapshot a cada log aceito. O
+O processador publica em `logs.metrics` totais acumulados por serviço e janela, agrupados em intervalos curtos
+(ADR 0003). O
 `alert-service` grava esses totais com
 `INSERT ... ON CONFLICT (service_name, window_start) DO UPDATE ... WHERE EXCLUDED.total_logs > window_counts.total_logs`:
 o snapshot substitui o anterior, nunca é somado, e só é aplicado quando tem mais logs que o registro atual. Assim, a

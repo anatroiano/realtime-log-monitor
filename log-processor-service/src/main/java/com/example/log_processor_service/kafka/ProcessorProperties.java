@@ -17,6 +17,7 @@ public record ProcessorProperties(
         Duration gracePeriod,
         Duration deduplicationRetention,
         Duration outputRetention,
+        Duration metricsFlushInterval,
         @Min(1) int partitions,
         @Min(1) short replicas
 ) {
@@ -31,6 +32,9 @@ public record ProcessorProperties(
         }
         if (outputRetention == null || outputRetention.isNegative() || outputRetention.isZero()) {
             throw new IllegalArgumentException("processor.output-retention must be positive");
+        }
+        if (metricsFlushInterval == null || metricsFlushInterval.isNegative() || metricsFlushInterval.isZero()) {
+            throw new IllegalArgumentException("processor.metrics-flush-interval must be positive");
         }
     }
 }

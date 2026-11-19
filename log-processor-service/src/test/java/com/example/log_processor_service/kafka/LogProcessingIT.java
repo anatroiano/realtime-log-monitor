@@ -82,23 +82,26 @@ class LogProcessingIT {
             publications.add(template.send(properties.rawTopic(), logs.getFirst().serviceName(), logs.getFirst()));
             CompletableFuture.allOf(publications.toArray(CompletableFuture[]::new)).get(30, TimeUnit.SECONDS);
 
-            var records = KafkaTestUtils.getRecords(consumer, Duration.ofSeconds(30), 53);
+            var expectedSnapshot = new WindowMetrics("checkout", windowStart, windowStart.plusSeconds(60), 52, 51);
             var snapshots = new ArrayList<WindowMetrics>();
             var alerts = new ArrayList<AlertTriggered>();
-            for (var record : records) {
-                assertThat(record.headers().lastHeader("__TypeId__")).isNull();
-                if (record.topic().equals(properties.metricsTopic())) {
-                    snapshots.add(mapper.readValue(record.value(), WindowMetrics.class));
-                    assertThat(record.key()).isEqualTo(EventKeys.window("checkout", windowStart));
-                } else {
-                    var alert = mapper.readValue(record.value(), AlertTriggered.class);
-                    assertThat(record.key()).isEqualTo(alert.alertId());
-                    alerts.add(alert);
+            var deadline = Instant.now().plusSeconds(30);
+            while (Instant.now().isBefore(deadline)
+                    && (snapshots.isEmpty() || !snapshots.getLast().equals(expectedSnapshot) || alerts.isEmpty())) {
+                for (var record : consumer.poll(Duration.ofMillis(500))) {
+                    assertThat(record.headers().lastHeader("__TypeId__")).isNull();
+                    if (record.topic().equals(properties.metricsTopic())) {
+                        snapshots.add(mapper.readValue(record.value(), WindowMetrics.class));
+                        assertThat(record.key()).isEqualTo(EventKeys.window("checkout", windowStart));
+                    } else {
+                        var alert = mapper.readValue(record.value(), AlertTriggered.class);
+                        assertThat(record.key()).isEqualTo(alert.alertId());
+                        alerts.add(alert);
+                    }
                 }
             }
-            assertThat(snapshots).hasSize(52);
-            assertThat(snapshots.getLast()).isEqualTo(
-                    new WindowMetrics("checkout", windowStart, windowStart.plusSeconds(60), 52, 51));
+            assertThat(snapshots).hasSizeLessThan(52);
+            assertThat(snapshots.getLast()).isEqualTo(expectedSnapshot);
             assertThat(alerts).hasSize(1);
             assertThat(alerts.getFirst().errorCount()).isEqualTo(51);
         } finally {

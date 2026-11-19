@@ -27,7 +27,7 @@ public class LogTopologyConfiguration {
     @Bean
     public KStream<String, WindowMetrics> logStream(StreamsBuilder builder, ProcessorProperties properties,
                                                     JsonMapper mapper, Validator validator, MeterRegistry registry) {
-        registerStateStores(builder, properties);
+        registerStateStores(builder, properties, mapper);
         var processed = readLogs(builder, properties, mapper, validator, registry);
         publishRejectedLogs(processed, properties, mapper);
 
@@ -37,11 +37,14 @@ public class LogTopologyConfiguration {
         return metrics;
     }
 
-    private void registerStateStores(StreamsBuilder builder, ProcessorProperties properties) {
+    private void registerStateStores(StreamsBuilder builder, ProcessorProperties properties, JsonMapper mapper) {
         builder.addStateStore(Stores.windowStoreBuilder(
                 Stores.persistentWindowStore(LogRecordProcessor.SEEN_LOGS_STORE,
                         properties.deduplicationRetention(), properties.deduplicationRetention(), false),
                 Serdes.String(), Serdes.Long()));
+        builder.addStateStore(Stores.keyValueStoreBuilder(
+                Stores.persistentKeyValueStore(MetricsSnapshotBuffer.PENDING_METRICS_STORE),
+                Serdes.String(), jsonSerde(WindowMetrics.class, mapper)));
     }
 
     private KStream<String, ProcessedLog> readLogs(StreamsBuilder builder, ProcessorProperties properties,
@@ -78,10 +81,9 @@ public class LogTopologyConfiguration {
 
     private KStream<String, WindowMetrics> publishMetrics(KStream<Windowed<String>, WindowCounts> counts,
                                                           ProcessorProperties properties, JsonMapper mapper) {
-        var metrics = counts.map((window, value) -> {
-            var metric = windowMetrics(window, value);
-            return KeyValue.pair(EventKeys.window(metric.serviceName(), metric.windowStart()), metric);
-        });
+        var metrics = counts.mapValues(this::windowMetrics)
+                .process(() -> new MetricsSnapshotBuffer(properties.metricsFlushInterval()),
+                        Named.as("coalesce-window-metrics"), MetricsSnapshotBuffer.PENDING_METRICS_STORE);
         metrics.to(properties.metricsTopic(), Produced.with(Serdes.String(), jsonSerde(WindowMetrics.class, mapper)));
         return metrics;
     }

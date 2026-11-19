@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Projeto de portfólio para monitorar logs em tempo real e praticar Java, Kafka, Kafka Streams e Grafana. Três microsserviços recebem logs de aplicações simuladas, agregam erros por serviço e minuto e registram incidentes. O gerador de carga é um script do projeto.
+Projeto de portfólio para monitorar logs em tempo real e praticar Java, Kafka, Kafka Streams e Grafana. Três microsserviços recebem logs de aplicações simuladas, agregam erros por serviço e minuto e registram incidentes.
 
 ## Fluxo
 
@@ -15,7 +15,7 @@ Os três serviços expõem métricas operacionais via Actuator. O Prometheus col
 | Serviço | Entrada e saída | Responsabilidade |
 | --- | --- | --- |
 | `log-collector-service` | `POST /logs` → `logs.raw` | Receber lotes JSON, validar antes de publicar e enviar um registro por log ao Kafka com `serviceName` como chave. Responder `202` após o broker confirmar todos os envios do lote. O cliente conserva os mesmos `logId` em retentativas. |
-| `log-processor-service` | `logs.raw` → `logs.metrics` e `alerts.triggered` | Usar Kafka Streams para deduplicar logs e contar entradas por serviço em janelas fixas de um minuto, com base no timestamp original. Contar `ERROR` e `FATAL` como erros e gerar um alerta quando a contagem atingir 51 na janela. |
+| `log-processor-service` | `logs.raw` → `logs.metrics` e `alerts.triggered` | Usar Kafka Streams para deduplicar logs e contar entradas por serviço em janelas fixas de um minuto, com base no timestamp original. Contar `ERROR` e `FATAL` como erros e gerar um alerta quando a contagem atingir 51 na janela. Publicar as métricas agrupadas por intervalo, com o snapshot mais recente de cada janela. |
 | `alert-service` | `logs.metrics` e `alerts.triggered` → PostgreSQL e `GET /alerts` | Atualizar as contagens por serviço e janela, registrar incidentes, disponibilizar o histórico e, em uma etapa posterior do MVP, enviar notificações via webhook. |
 
 ## Contratos Kafka

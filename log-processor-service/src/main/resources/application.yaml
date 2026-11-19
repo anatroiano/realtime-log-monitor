@@ -36,6 +36,7 @@ processor:
   grace-period: ${PROCESSOR_GRACE_PERIOD:5m}
   deduplication-retention: ${PROCESSOR_DEDUPLICATION_RETENTION:24h}
   output-retention: ${PROCESSOR_OUTPUT_RETENTION:7d}
+  metrics-flush-interval: ${PROCESSOR_METRICS_FLUSH_INTERVAL:1s}
   partitions: ${PROCESSOR_TOPIC_PARTITIONS:3}
   replicas: ${PROCESSOR_REPLICATION_FACTOR:1}
 

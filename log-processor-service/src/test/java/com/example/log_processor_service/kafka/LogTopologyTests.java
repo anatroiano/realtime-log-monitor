@@ -9,6 +9,7 @@ import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.*;
+import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.ValueAndTimestamp;
 import org.apache.kafka.streams.state.WindowStore;
 import org.junit.jupiter.api.AfterEach;
@@ -26,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Properties;
 import java.util.stream.Stream;
 
@@ -38,7 +40,7 @@ class LogTopologyTests {
     private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
     private final ProcessorProperties settings = new ProcessorProperties("logs.raw", "logs.metrics",
             "alerts.triggered", "logs.raw.dlt", Duration.ofMinutes(5), Duration.ofHours(24),
-            Duration.ofDays(7), 3, (short) 1);
+            Duration.ofDays(7), Duration.ofSeconds(1), 3, (short) 1);
 
     @TempDir
     Path stateDirectory;
@@ -80,9 +82,7 @@ class LogTopologyTests {
         for (var level : LogLevel.values()) {
             send(event(level.name(), "checkout", level, START.plusSeconds(30)));
         }
-        var snapshots = metrics.readValuesToList();
-        assertThat(snapshots).hasSize(6);
-        assertThat(snapshots.getLast()).isEqualTo(new WindowMetrics(
+        assertThat(flushedMetrics()).containsExactly(new WindowMetrics(
                 "checkout", START, START.plusSeconds(60), 6, 2));
         assertThat(alerts.isEmpty()).isTrue();
     }
@@ -94,7 +94,7 @@ class LogTopologyTests {
         send(log);
         send(event("same-id", "catalog", LogLevel.ERROR, START));
 
-        assertThat(metrics.readValuesToList()).hasSize(2).allSatisfy(metric -> {
+        assertThat(flushedMetrics()).hasSize(2).allSatisfy(metric -> {
             assertThat(metric.totalLogs()).isEqualTo(1);
             assertThat(metric.errorCount()).isEqualTo(1);
         });
@@ -106,8 +106,7 @@ class LogTopologyTests {
         send(event("first", "checkout", LogLevel.ERROR, START.plusMillis(59999)));
         send(event("second", "checkout", LogLevel.INFO, START.plusSeconds(60)));
 
-        var snapshots = metrics.readValuesToList();
-        assertThat(snapshots).containsExactly(
+        assertThat(flushedMetrics()).containsExactlyInAnyOrder(
                 new WindowMetrics("checkout", START, START.plusSeconds(60), 1, 1),
                 new WindowMetrics("checkout", START.plusSeconds(60), START.plusSeconds(120), 1, 0));
     }
@@ -135,7 +134,7 @@ class LogTopologyTests {
         send(event("error-52", "checkout", LogLevel.ERROR, START));
         send(event("fatal", "checkout", LogLevel.FATAL, START));
         assertThat(alerts.isEmpty()).isTrue();
-        assertThat(metrics.readValuesToList().getLast()).isEqualTo(
+        assertThat(flushedMetrics()).containsExactly(
                 new WindowMetrics("checkout", START, START.plusSeconds(60), 53, 52));
     }
 
@@ -157,7 +156,7 @@ class LogTopologyTests {
         send(event("advance", "catalog", LogLevel.INFO, START.plusSeconds(359)));
         send(event("late", "checkout", LogLevel.ERROR, START.plusSeconds(30)));
 
-        assertThat(metrics.readValuesToList().getLast()).isEqualTo(
+        assertThat(flushedMetrics()).contains(
                 new WindowMetrics("checkout", START, START.plusSeconds(60), 2, 1));
         assertThat(counter("late")).isZero();
     }
@@ -165,10 +164,10 @@ class LogTopologyTests {
     @Test
     void dropsAnEventAtTheGraceDeadline() {
         send(event("advance", "catalog", LogLevel.INFO, START.plusSeconds(360)));
-        metrics.readValuesToList();
+        flushedMetrics();
         send(event("too-late", "checkout", LogLevel.ERROR, START.plusMillis(59999)));
 
-        assertThat(metrics.isEmpty()).isTrue();
+        assertThat(flushedMetrics()).isEmpty();
         assertThat(counter("late")).isEqualTo(1);
         assertThat(alerts.isEmpty()).isTrue();
     }
@@ -186,7 +185,7 @@ class LogTopologyTests {
         assertThat(failure.key()).isEqualTo("checkout");
         assertThat(failure.value()).isEqualTo(invalid);
         assertThat(failure.reason()).isEqualTo("INVALID_JSON");
-        assertThat(metrics.readValue().totalLogs()).isEqualTo(1);
+        assertThat(flushedMetrics()).singleElement().extracting(WindowMetrics::totalLogs).isEqualTo(1L);
         assertThat(counter("invalid")).isEqualTo(1);
     }
 
@@ -200,7 +199,7 @@ class LogTopologyTests {
         send(event("second", "checkout", LogLevel.ERROR, START.plusSeconds(10)));
 
         assertThat(rejected.readValue().reason()).isEqualTo("INVALID_FIELDS");
-        assertThat(metrics.readValuesToList().getLast().totalLogs()).isEqualTo(2);
+        assertThat(flushedMetrics()).singleElement().extracting(WindowMetrics::totalLogs).isEqualTo(2L);
         assertThat(counter("late")).isZero();
     }
 
@@ -211,7 +210,7 @@ class LogTopologyTests {
         send(event("valid", "checkout", LogLevel.INFO, START));
 
         assertThat(rejected.readValue().reason()).isEqualTo("KEY_MISMATCH");
-        assertThat(metrics.readValue().totalLogs()).isEqualTo(1);
+        assertThat(flushedMetrics()).singleElement().extracting(WindowMetrics::totalLogs).isEqualTo(1L);
         assertThat(counter("late")).isZero();
     }
 
@@ -222,7 +221,7 @@ class LogTopologyTests {
         var failure = rejected.readValue();
         assertThat(failure.reason()).isEqualTo("MISSING_VALUE");
         assertThat(failure.value()).isNull();
-        assertThat(metrics.isEmpty()).isTrue();
+        assertThat(flushedMetrics()).isEmpty();
     }
 
     @ParameterizedTest
@@ -231,7 +230,7 @@ class LogTopologyTests {
         send(event("invalid-timestamp", "checkout", LogLevel.ERROR, timestamp));
 
         assertThat(rejected.readValue().reason()).isEqualTo("INVALID_TIMESTAMP");
-        assertThat(metrics.isEmpty()).isTrue();
+        assertThat(flushedMetrics()).isEmpty();
     }
 
     static Stream<Instant> unsupportedTimestamps() {
@@ -247,10 +246,10 @@ class LogTopologyTests {
                 START.toEpochMilli());
 
         send(event("restored", "checkout", LogLevel.ERROR, START));
-        assertThat(metrics.isEmpty()).isTrue();
+        assertThat(flushedMetrics()).isEmpty();
         send(event("new", "checkout", LogLevel.FATAL, START));
 
-        assertThat(metrics.readValue()).isEqualTo(
+        assertThat(flushedMetrics()).containsExactly(
                 new WindowMetrics("checkout", START, START.plusSeconds(60), 52, 52));
         assertThat(alerts.isEmpty()).isTrue();
     }
@@ -260,6 +259,7 @@ class LogTopologyTests {
         send(event("c", "a:b", LogLevel.INFO, START));
         send(event("b:c", "a", LogLevel.INFO, START));
 
+        driver.advanceWallClockTime(settings.metricsFlushInterval());
         assertThat(metrics.readKeyValuesToMap()).hasSize(2);
         assertThat(counter("accepted")).isEqualTo(2);
         assertThat(counter("duplicate")).isZero();
@@ -281,6 +281,7 @@ class LogTopologyTests {
         var wire = driver.createOutputTopic(settings.metricsTopic(),
                 new StringDeserializer(), new ByteArrayDeserializer());
         send(event("wire-contract", "checkout", LogLevel.ERROR, START));
+        driver.advanceWallClockTime(settings.metricsFlushInterval());
 
         var record = wire.readRecord();
         assertThat(record.key()).isEqualTo("Y2hlY2tvdXQ:" + START.toEpochMilli());
@@ -289,6 +290,47 @@ class LogTopologyTests {
         assertThat(json.get("windowStart").asString()).isEqualTo(START.toString());
         assertThat(json.get("windowEnd").asString()).isEqualTo(START.plusSeconds(60).toString());
         assertThat(record.headers().lastHeader("__TypeId__")).isNull();
+    }
+
+    @Test
+    void publishesOnlyTheLatestSnapshotPerWindowAtEachFlush() {
+        send(event("first", "checkout", LogLevel.INFO, START));
+        send(event("second", "checkout", LogLevel.ERROR, START));
+        send(event("third", "checkout", LogLevel.ERROR, START));
+
+        assertThat(metrics.isEmpty()).isTrue();
+        assertThat(flushedMetrics()).containsExactly(
+                new WindowMetrics("checkout", START, START.plusSeconds(60), 3, 2));
+        assertThat(flushedMetrics()).isEmpty();
+    }
+
+    @Test
+    void publishesAlertsBeforeTheMetricsFlush() {
+        for (int i = 0; i < 51; i++) {
+            send(event("error-" + i, "checkout", LogLevel.ERROR, START));
+        }
+
+        assertThat(alerts.readValue().errorCount()).isEqualTo(51);
+        assertThat(metrics.isEmpty()).isTrue();
+    }
+
+    @Test
+    void keepsPendingSnapshotsInTheStateStoreUntilTheFlush() {
+        send(event("pending", "checkout", LogLevel.ERROR, START));
+        KeyValueStore<String, WindowMetrics> pending =
+                driver.getKeyValueStore(MetricsSnapshotBuffer.PENDING_METRICS_STORE);
+
+        assertThat(pending.get(EventKeys.window("checkout", START))).isEqualTo(
+                new WindowMetrics("checkout", START, START.plusSeconds(60), 1, 1));
+        flushedMetrics();
+        try (var remaining = pending.all()) {
+            assertThat(remaining.hasNext()).isFalse();
+        }
+    }
+
+    private List<WindowMetrics> flushedMetrics() {
+        driver.advanceWallClockTime(settings.metricsFlushInterval());
+        return metrics.readValuesToList();
     }
 
     private LogEvent event(String id, String service, LogLevel level, Instant timestamp) {
